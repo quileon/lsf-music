@@ -3,8 +3,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::Result;
-use log::{debug, info};
+use anyhow::{Context, Result, bail};
+use log::{debug, error, info};
 use walkdir::WalkDir;
 
 #[cfg(feature = "opus")]
@@ -46,7 +46,7 @@ pub fn batch(t: &dyn Transcoder, input_dir: &Path, output_dir: &Path) -> Result<
             .join(input.strip_prefix(input_dir)?)
             .with_extension(t.extension());
         if output.exists() {
-            debug!("skip {}: already exist", output.display());
+            debug!("skip {}: already exists", output.display());
             continue;
         }
 
@@ -58,21 +58,39 @@ pub fn batch(t: &dyn Transcoder, input_dir: &Path, output_dir: &Path) -> Result<
     info!("{} job(s) to run", jobs.len());
 
     // Step 2: Transcode collected files to output_dir
+    let mut failed = 0;
     for job in &jobs {
-        match job {
-            Job::Copy { input, output } => {
-                if let Some(parent) = output.parent() {
-                    fs::create_dir_all(parent)?;
-                }
-                info!("copy {} -> {}", input.display(), output.display());
-                fs::copy(input, output)?;
+        if let Err(e) = run_job(t, job) {
+            error!("{e:#}");
+            failed += 1;
+        }
+    }
+
+    if failed > 0 {
+        bail!("{failed} or {} job(s) failed", jobs.len());
+    }
+
+    Ok(())
+}
+
+fn run_job(t: &dyn Transcoder, job: &Job) -> Result<()> {
+    match job {
+        Job::Copy { input, output } => {
+            if let Some(parent) = output.parent() {
+                fs::create_dir_all(parent)?;
             }
-            Job::Transcode { input, output } => {
-                if let Some(parent) = output.parent() {
-                    fs::create_dir_all(parent)?;
-                }
-                info!("transcode {} -> {}", input.display(), output.display());
-                t.transcode(input, output)?;
+            info!("copy {} -> {}", input.display(), output.display());
+            fs::copy(input, output)
+                .with_context(|| format!("failed to copy {}", input.display()))?;
+        }
+        Job::Transcode { input, output } => {
+            if let Some(parent) = output.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            info!("transcode {} -> {}", input.display(), output.display());
+            if let Err(e) = t.transcode(input, output) {
+                let _ = fs::remove_file(output);
+                return Err(e.context(format!("failed to transcode {}", input.display())));
             }
         }
     }

@@ -16,6 +16,44 @@ and the binary owns all CLI types, with Cargo features gating each format.
 - [x] 8. Build and check (both feature sets build clean; batch/single/metadata return clean errors)
 - [ ] 9. Choose an encoder and fill in `Opus::transcode` (deferred, possibly the last thing done; stub returns an error until then)
 
+## Next phase
+
+- [x] Logging: `log` in libraries, `env_logger` in the binary, `-v`/`-vv` (`ArgAction::Count`, global)
+- [x] Batch continues on per-file errors (`run_job`, `error!` + count, fail at the end, partial output removed)
+- [ ] Opus encoder (step 9), moved before tests
+- [ ] Tests, written once the encoder's output is known: `batch` (temp dir + fake `Transcoder`)
+      and encoder properties via `lofty` as a dev-dependency
+
+## Encoder pipeline (chosen: libopusenc via the `opusenc` crate)
+
+Decoding and tag reading are shared by every codec, so they live outside the `opus` feature:
+
+- `decode.rs` (always compiled): `symphonia` 0.6 (features: flac, alac, isomp4). It opens any
+  supported input and yields the spec (rate, channels, bit depth) plus interleaved `f32` blocks.
+  Opus *input* isn't supported by symphonia; that needs a libopus decoder later (low priority).
+- `tags.rs` (LATER, not now): `lofty` reads tags and pictures from FLAC, MP4/ALAC and Opus into
+  generic items, mapped to Vorbis comment keys for Opus/FLAC output. Until then, `Comments::create()` stays empty.
+- `opus.rs` (`opus` feature): `opus = ["dep:opusenc"]`, with `opusenc` built with
+  `features = ["encoder-options"]`. System library `libopusenc` (installed, 0.3); it resamples internally.
+
+`Opus::transcode`:
+1. Tags and cover from `tags.rs` go into `opusenc::Comments` (`add_string`, `add_picture_from_memory`).
+2. Open the input with `decode.rs` to get the rate, channels and bits.
+3. `Encoder::create_file(output, &comments, rate, channels, MappingFamily::MonoStereo)`, then
+   `set_bitrate(self.bitrate_kbps * 1000)`, `set_serialno(fixed)`, `set_lsb_depth(bits)`.
+4. For each decoded block, call `write_float`.
+5. `drain()`.
+
+`batch` input filter: extend from `flac` to the supported input extensions (flac, m4a, ...).
+
+## Encoder requirements
+
+- Opus at 128 kbps
+- Same Vorbis comments as the source FLAC
+- Cover art carried over (in Opus it's a base64 `METADATA_BLOCK_PICTURE` comment)
+- Fixed Ogg serial (or configurable) so outputs are reproducible
+- Output must be valid Opus with the same channel count and about the same duration
+
 ## Layout
 
 ```

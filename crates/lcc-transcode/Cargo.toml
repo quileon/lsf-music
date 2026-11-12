@@ -1,0 +1,12 @@
+[package]
+name = "lcc-transcode"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+opus = []
+
+[dependencies]
+anyhow = "1"
+log = "0.4.35"
+walkdir = "2.5.0"

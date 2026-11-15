@@ -68,7 +68,7 @@ pub fn batch(t: &dyn Transcoder, input_dir: &Path, output_dir: &Path) -> Result<
     }
 
     if failed > 0 {
-        bail!("{failed} or {} job(s) failed", jobs.len());
+        bail!("{failed} of {} job(s) failed", jobs.len());
     }
 
     Ok(())

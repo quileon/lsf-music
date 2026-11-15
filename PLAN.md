@@ -14,15 +14,17 @@ and the binary owns all CLI types, with Cargo features gating each format.
 - [x] 6. `src/cli.rs`: `TranscodeCommands` + `TranscodeMode`
 - [x] 7. `src/run.rs`: dispatch
 - [x] 8. Build and check (both feature sets build clean; batch/single/metadata return clean errors)
-- [ ] 9. Choose an encoder and fill in `Opus::transcode` (deferred, possibly the last thing done; stub returns an error until then)
+- [x] 9. Fill in `Opus::transcode` (libopusenc via `opusenc`, whole-file decode, mono/stereo only, no tags yet)
 
 ## Next phase
 
 - [x] Logging: `log` in libraries, `env_logger` in the binary, `-v`/`-vv` (`ArgAction::Count`, global)
 - [x] Batch continues on per-file errors (`run_job`, `error!` + count, fail at the end, partial output removed)
-- [ ] Opus encoder (step 9), moved before tests
+- [x] Opus encoder (step 9), moved before tests
 - [ ] Tests, written once the encoder's output is known: `batch` (temp dir + fake `Transcoder`)
-      and encoder properties via `lofty` as a dev-dependency
+      and encoder properties via `lofty` as a dev-dependency (rate, channels, duration, tags).
+      No byte-exact hashes. Maybe later: decode the Opus back and compare PCM similarity
+      (needs an Opus decoder, delay/pre-skip alignment and a tolerance; skip it if it gets hard)
 
 ## Encoder pipeline (chosen: libopusenc via the `opusenc` crate)
 
@@ -51,7 +53,8 @@ Decoding and tag reading are shared by every codec, so they live outside the `op
 - Opus at 128 kbps
 - Same Vorbis comments as the source FLAC
 - Cover art carried over (in Opus it's a base64 `METADATA_BLOCK_PICTURE` comment)
-- Fixed Ogg serial (or configurable) so outputs are reproducible
+- Ogg serial: left to libopusenc (fixed serial dropped; tests don't compare hashes). Add an
+  `Option<i32>` field later if byte-exact output is ever needed
 - Output must be valid Opus with the same channel count and about the same duration
 
 ## Layout

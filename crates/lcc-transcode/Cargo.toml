@@ -10,7 +10,7 @@ opus = ["dep:opusenc"]
 anyhow = "1"
 log = "0.4.35"
 opusenc = { version = "0.3.1", features = ["encoder-options"], optional = true }
-symphonia = { version = "0.6.1", default-features = false, features = [
+symphonia = { version = "0.6.1", default-features = true, features = [
 	"flac",
 	"alac",
 	"isomp4",

@@ -7,6 +7,7 @@ use anyhow::{Context, Result, bail};
 use log::{debug, error, info};
 use walkdir::WalkDir;
 
+pub mod decoder;
 #[cfg(feature = "opus")]
 pub mod opus;
 

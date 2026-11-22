@@ -3,7 +3,7 @@ use log::warn;
 use std::fs::File;
 use std::path::Path;
 use symphonia::core::codecs::audio::AudioDecoderOptions;
-use symphonia::core::formats::FormatOptions;
+use symphonia::core::formats::{FormatOptions, TrackType};
 use symphonia::core::formats::probe::Hint;
 use symphonia::core::io::{MediaSourceStream, MediaSourceStreamOptions};
 use symphonia::core::meta::MetadataOptions;
@@ -38,29 +38,15 @@ pub fn decode(path: &Path) -> Result<Pcm> {
         )
         .context("unsupported or corrupt audio file")?;
 
-    // Get the audio track and its parameters
-    let (track_id, params) = {
-        let track = format
-            .tracks()
-            .iter()
-            .find(|t| t.codec_params.as_ref().is_some_and(|p| p.is_audio()))
-            .context("no audio track found")?;
-        let params = track
-            .codec_params
-            .as_ref()
-            .and_then(|p| p.audio())
-            .context("track has no audio parameters")?
-            .clone();
-        (track.id, params)
-    };
+    // Get the first track and its codec
+    let track = format.default_track(TrackType::Audio).context("no audio track found")?;
+    let track_id = track.id;
+    let params = track.codec_params.as_ref().and_then(|p| p.audio()).context("no codec is available for this track")?;
 
-    // Get more details inside the codec parameters
+    // Get more details of the track from its codec parameters
     let rate = params.sample_rate.context("unknown sample rate")?;
-    let channels = params
-        .channels
-        .as_ref()
-        .map(|c| c.count())
-        .context("unknown channel count")?;
+    let channels = params.channels.as_ref().map(|c| c.count()).context("unknown channel count")?;
+    let bits = params.bits_per_sample;
 
     let mut decoder = get_codecs()
         .make_audio_decoder(&params, &AudioDecoderOptions::default())
@@ -96,6 +82,6 @@ pub fn decode(path: &Path) -> Result<Pcm> {
         samples,
         rate,
         channels,
-        bits: params.bits_per_sample,
+        bits,
     })
 }
